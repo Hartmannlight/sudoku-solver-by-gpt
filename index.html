@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sudoku Solver</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f9;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    #sudoku {
+      display: flex;
+      flex-direction: column;
+      border: 3px solid #333;
+    }
+    .row {
+      display: flex;
+    }
+    .cell {
+      width: 40px;
+      height: 40px;
+      text-align: center;
+      font-size: 18px;
+      border: 1px solid #999;
+      outline: none;
+      transition: background-color 0.2s ease;
+    }
+    .cell:focus {
+      border-color: #66afe9;
+      background-color: #eef;
+    }
+    /* Vertical bold borders for 3x3 boxes */
+    .cell:nth-child(3) {
+      border-right: 3px solid #333;
+    }
+    .cell:nth-child(6) {
+      border-right: 3px solid #333;
+    }
+    /* Horizontal bold borders for 3x3 boxes */
+    .row:nth-child(3) .cell,
+    .row:nth-child(6) .cell {
+      border-bottom: 3px solid #333;
+    }
+    /* Clear extra left border on first cell in each row */
+    .cell:first-child {
+      border-left: 1px solid #999;
+    }
+    /* Clear extra top border on first row */
+    .row:first-child .cell {
+      border-top: 1px solid #999;
+    }
+    #controls {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-top: 15px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      background: #007BFF;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    label {
+      font-size: 16px;
+    }
+    #message {
+      margin-top: 15px;
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sudoku Solver</h1>
+  <div id="sudoku"></div>
+  <div id="controls">
+    <button id="solveBtn">Solve</button>
+    <button id="clearBtn">Clear</button>
+    <label>
+      <input type="checkbox" id="toggleAnimation" checked>
+      Enable Animations
+    </label>
+  </div>
+  <div id="message"></div>
+
+  <script>
+    // Generate the 9x9 grid with row divs for better styling.
+    const sudokuContainer = document.getElementById('sudoku');
+    for (let row = 0; row < 9; row++) {
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'row';
+      for (let col = 0; col < 9; col++) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.maxLength = '1';
+        input.id = `cell-${row}-${col}`;
+        input.className = 'cell';
+        input.pattern = "[1-9]";
+        rowDiv.appendChild(input);
+      }
+      sudokuContainer.appendChild(rowDiv);
+    }
+
+    /**
+     * Pause execution for a specified duration unless animations are disabled.
+     * @param {number} ms - Milliseconds to sleep.
+     * @returns {Promise} Promise that resolves after the delay.
+     */
+    function sleep(ms) {
+      const animationsEnabled = document.getElementById('toggleAnimation').checked;
+      return animationsEnabled ? new Promise(resolve => setTimeout(resolve, ms)) : Promise.resolve();
+    }
+
+    /**
+     * Update the DOM cell at (row, col) with the given value.
+     * @param {number} row - Row index.
+     * @param {number} col - Column index.
+     * @param {string|number} value - Value to set in the cell.
+     */
+    function updateGridCell(row, col, value) {
+      const cell = document.getElementById(`cell-${row}-${col}`);
+      cell.value = value;
+      cell.style.backgroundColor = "#d4edda";
+      setTimeout(() => cell.style.backgroundColor = "", 100);
+    }
+
+    /**
+     * Validate if placing num at board[row][col] is valid.
+     * @param {number[][]} board - The Sudoku board.
+     * @param {number} row - Row index.
+     * @param {number} col - Column index.
+     * @param {number} num - Number to place.
+     * @returns {boolean} True if valid.
+     */
+    function isValid(board, row, col, num) {
+      for (let i = 0; i < 9; i++) {
+        if (board[row][i] === num || board[i][col] === num) return false;
+      }
+      const boxRow = Math.floor(row / 3) * 3;
+      const boxCol = Math.floor(col / 3) * 3;
+      for (let i = boxRow; i < boxRow + 3; i++) {
+        for (let j = boxCol; j < boxCol + 3; j++) {
+          if (board[i][j] === num) return false;
+        }
+      }
+      return true;
+    }
+
+    /**
+     * Find the next empty cell on the board.
+     * @param {number[][]} board - The Sudoku board.
+     * @returns {[number, number] | null} The coordinates of the empty cell or null if full.
+     */
+    function findEmpty(board) {
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          if (board[i][j] === 0) return [i, j];
+        }
+      }
+      return null;
+    }
+
+    /**
+     * Asynchronously solve the Sudoku board using Backtracking.
+     * @param {number[][]} board - The Sudoku board.
+     * @returns {Promise<boolean>} True if solved.
+     */
+    async function solveSudoku(board) {
+      const empty = findEmpty(board);
+      if (!empty) return true;
+      const [row, col] = empty;
+      for (let num = 1; num <= 9; num++) {
+        if (isValid(board, row, col, num)) {
+          board[row][col] = num;
+          updateGridCell(row, col, num);
+          await sleep(50);
+          if (await solveSudoku(board)) return true;
+          board[row][col] = 0;
+          updateGridCell(row, col, '');
+          await sleep(50);
+        }
+      }
+      return false;
+    }
+
+    /**
+     * Retrieve the current board state from the grid.
+     * @returns {number[][]} The Sudoku board as a 2D array.
+     */
+    function getBoard() {
+      const board = [];
+      for (let i = 0; i < 9; i++) {
+        board[i] = [];
+        for (let j = 0; j < 9; j++) {
+          const val = document.getElementById(`cell-${i}-${j}`).value;
+          if (val === '') board[i][j] = 0;
+          else if (/^[1-9]$/.test(val)) board[i][j] = parseInt(val);
+          else {
+            document.getElementById('message').innerText = "Invalid input detected. Only digits 1-9 are allowed.";
+            throw new Error("Invalid input");
+          }
+        }
+      }
+      document.getElementById('message').innerText = "";
+      return board;
+    }
+
+    /**
+     * Clear the board and reset all input fields.
+     */
+    function clearBoard() {
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          document.getElementById(`cell-${i}-${j}`).value = "";
+        }
+      }
+      document.getElementById('message').innerText = "";
+    }
+
+    document.getElementById("solveBtn").addEventListener("click", async () => {
+      let board;
+      try {
+        board = getBoard();
+      } catch (e) {
+        return;
+      }
+      const solved = await solveSudoku(board);
+      if (!solved) {
+        document.getElementById('message').innerText = "No solution exists for the given puzzle.";
+      }
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", clearBoard);
+  </script>
+</body>
+</html>
